@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Express Checkout Experiment Readout</title>
 <meta name="description" content="An A/B test readout on synthetic data: a SQL pipeline with data tests, a metrics semantic layer, a sample ratio mismatch traced to two app builds, delta-method and CUPED analysis, and a ship decision. By Abdullah Al Mneni.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%274%27 fill=%27%230b6e63%27/%3E%3Cpath d=%27M4 9l3 3 5-7%27 stroke=%27white%27 stroke-width=%272%27 fill=%27none%27/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%274%27 fill=%27%23533afd%27/%3E%3Cpath d=%27M4 9l3 3 5-7%27 stroke=%27white%27 stroke-width=%272%27 fill=%27none%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300..600&family=JetBrains+Mono:wght@400;500&display=swap">
+<script>document.documentElement.classList.add("js")</script>
 <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
@@ -28,42 +29,47 @@
       <li><a href="#disputes">Disputes</a></li>
       <li><a href="#decision">Decision</a></li>
     </ul>
-    <a class="btn" href="https://github.com/abdullahmanini/checkout-experiment-readout">Repository</a>
+    <a class="btn" href="https://github.com/abdullahmanini/checkout-experiment-readout">Repository <svg class="chev" viewBox="0 0 10 10" aria-hidden="true"><path class="stem" d="M1 5h7"/><path class="head" d="M4 1.5 7.5 5 4 8.5"/></svg></a>
   </div>
 </nav>
 
 <main id="main">
-<header class="hero">
+<header class="hero" id="top">
+  <canvas id="ribbon" aria-hidden="true"></canvas>
   <div class="wrap">
     <div>
-      <span class="eyebrow">A/B test readout · synthetic data</span>
-      <h1>Did a one-tap wallet button lift checkout conversion?</h1>
-      <p class="lead">I built the pipeline, data tests, metric definitions and analysis for a two-week checkout experiment at a fictional retailer. The first number looked like +4.6 points. A logging bug in two app builds caused most of that, and the real lift is about +2.6.</p>
+      <p class="ticker">Checkout sessions replayed in SQL:<span class="tab" id="ticker">0</span></p>
+      <h1>Did one-tap checkout lift conversion? <span class="soft">Yes, by 2.6 points, not the 4.6 the first readout showed.</span></h1>
+      <p class="lead">I built the pipeline, data tests, metric definitions and analysis for a two-week checkout experiment at a fictional retailer. A logging bug in two app builds inflated the first number, and the data tests found it.</p>
       <p class="byline">Abdullah Al Mneni · Business Technology Management, Toronto Metropolitan University · October 2026</p>
       <div class="actions">
-        <a class="btn solid" href="docs/readout.md">Read the decision memo</a>
-        <a class="btn" href="docs/experiment_plan.md">Experiment plan</a>
-        <a class="btn" href="sql/tests.sql">Data tests</a>
+        <a class="btn solid" href="docs/readout.md">Read the decision memo <svg class="chev" viewBox="0 0 10 10" aria-hidden="true"><path class="stem" d="M1 5h7"/><path class="head" d="M4 1.5 7.5 5 4 8.5"/></svg></a>
+        <a class="btn" href="docs/experiment_plan.md">Experiment plan <svg class="chev" viewBox="0 0 10 10" aria-hidden="true"><path class="stem" d="M1 5h7"/><path class="head" d="M4 1.5 7.5 5 4 8.5"/></svg></a>
+        <a class="btn quiet" href="sql/tests.sql">Data tests</a>
       </div>
     </div>
-    <aside class="scorecard" aria-label="Readout summary">
-      <div class="head"><span><b>express_checkout_v1</b></span><span>Sep 14 to 27, 2026 · <span class="tab" data-bind="results.srm.analysis.n" data-fmt="int"></span> customers</span></div>
-      <div class="big">
-        <div class="kpi-v tab" data-bind="results.primary.diff" data-fmt="pp"></div>
-        <div class="kpi-l">checkout conversion, treatment minus control (95% CI <span class="tab" data-bind="results.primary.ci_low" data-fmt="pp"></span> to <span class="tab" data-bind="results.primary.ci_high" data-fmt="pp"></span>)</div>
+    <aside class="panel" aria-label="Readout summary">
+      <div class="panel-head"><b>express_checkout_v1</b><span class="live">Read out Oct 26 · <span class="tab" data-bind="results.srm.analysis.n" data-fmt="int"></span> customers</span></div>
+      <div class="hero-kpi">
+        <div class="kpi-v" id="hero-lift">+0.00 pp</div>
+        <div class="kpi-l">checkout conversion, treatment minus control · 95% CI <span class="tab" data-bind="results.primary.ci_low" data-fmt="sgn"></span> to <span class="tab" data-bind="results.primary.ci_high" data-fmt="sgn"></span></div>
       </div>
-      <div class="compare">
-        <div><div class="kpi-v tab" data-bind="results.primary_naive.diff" data-fmt="pp"></div><div class="kpi-l">naive estimate, before the SRM was traced</div></div>
-        <div><div class="kpi-v tab" data-bind="results.truth_check.true_lift_pp_analysis_population" data-fmt="pp"></div><div class="kpi-l">true effect, known because the data is simulated</div></div>
-        <div><span class="status pass">Pass</span><div class="kpi-l">authorization and refund guardrails</div></div>
-        <div><span class="status warn">Open</span><div class="kpi-l">dispute guardrail: about <span data-bind="results.dispute.expected_share_arrived_pct"></span>% of disputes have arrived</div></div>
+      <div class="spark">
+        <svg id="spark" viewBox="0 0 300 72" role="img" aria-label="Cumulative lift by day settling near 2.6 points"></svg>
+        <p>Cumulative lift by day, with its 95% interval narrowing over 14 days.</p>
       </div>
-      <div class="foot">Decision: ship, with a 5% holdout until disputes can be read on Dec 26.</div>
+      <div class="kpis">
+        <div class="kpi"><div class="kpi-v tab" data-bind="results.primary_naive.diff" data-fmt="pp"></div><div class="kpi-l">naive estimate, before the SRM was traced</div></div>
+        <div class="kpi"><div class="kpi-v tab" data-bind="results.truth_check.true_lift_pp_analysis_population" data-fmt="pp"></div><div class="kpi-l">true effect, known because the data is simulated</div></div>
+        <div class="kpi"><span class="status pass">Pass</span><div class="kpi-l">authorization and refund guardrails</div></div>
+        <div class="kpi"><span class="status warn">Open</span><div class="kpi-l">disputes: about <span data-bind="results.dispute.expected_share_arrived_pct"></span>% have arrived</div></div>
+      </div>
+      <div class="foot"><b>Decision:</b> ship to 95%, hold out 5% until disputes can be read on Dec 26.</div>
     </aside>
   </div>
 </header>
 
-<div class="note"><div class="wrap"><p>Larchway Outfitters is fictional, and every customer, payment and dispute comes from a seeded Python model. The study is not affiliated with any payments company or retailer. Because the model simulates every customer under both versions, the true effect is known, so the readout can be checked against it.</p></div></div>
+<div class="note-strip"><div class="wrap"><p>Larchway Outfitters is fictional, and every customer, payment and dispute comes from a seeded Python model. The study is not affiliated with any payments company or retailer. Because the model simulates every customer under both versions, the true effect is known, so the readout can be checked against it.</p></div></div>
 
 <section class="band" id="plan">
   <div class="wrap sec">
@@ -94,6 +100,7 @@
       <h2>Three sources, one customer table, fifteen tests</h2>
       <p class="intro">The data arrives the way it would in practice: an assignment log from the bucketing service, client analytics events from the apps and website, and a server-side payments ledger with refunds and disputes. These are separate systems with separate failure modes.</p>
       <div class="flow" aria-label="Pipeline stages">
+        <div class="wire" aria-hidden="true"><i></i><i></i><i></i></div>
         <div class="stage"><div class="k">Raw</div><div class="t">As landed</div><ul><li>assignments</li><li>customers</li><li>checkout events</li><li>payment attempts</li><li>refunds, disputes</li></ul></div>
         <div class="stage"><div class="k">Staging</div><div class="t">Typed, deduplicated</div><ul><li>typed columns</li><li>first copy of each resent event</li></ul></div>
         <div class="stage"><div class="k">Marts</div><div class="t">Business grain</div><ul><li>checkout sessions</li><li>orders</li><li>one row per customer</li></ul></div>
@@ -113,11 +120,10 @@
     <div>
       <h2>Each metric is defined once and compiled to SQL</h2>
       <p class="intro">Every metric is a ratio of two measures summed over customers, the unit that was randomized. From one definition, <a href="python/semantic_layer.py"><code>semantic_layer.py</code></a> produces two queries. One returns the metric value for dashboards. The other returns the sums, squares and cross-products the variance formulas need, so the confidence interval and the dashboard number come from the same definition.</p>
-      <div class="code-cap">metrics/semantic_layer.json (excerpt)</div>
-      <pre id="metric-def"></pre>
+      <div class="console"><div class="bar"><i></i><i></i><i></i><span>metrics/semantic_layer.json (excerpt)</span></div><pre id="metric-def"></pre></div>
       <div class="code-grid">
-        <div><div class="code-cap">compiled: value by variant</div><pre id="sql-value"></pre></div>
-        <div><div class="code-cap">compiled: sufficient statistics</div><pre id="sql-stats"></pre></div>
+        <div class="console"><div class="bar"><i></i><i></i><i></i><span>compiled · value by variant</span></div><pre id="sql-value"></pre></div>
+        <div class="console"><div class="bar"><i></i><i></i><i></i><span>compiled · sufficient statistics</span></div><pre id="sql-stats"></pre></div>
       </div>
       <p style="margin-top:18px">Authorization, refund and dispute rates are counted per attempt or per order, but one customer can make several of each. Treating attempts as independent would understate the variance, so those metrics use the delta method on customer-level sums.</p>
     </div>
@@ -135,9 +141,11 @@
         <p class="cap">Treatment share of customers with a logged checkout_started. Dot left of the line means treatment customers are missing.</p>
         <div class="table-wrap" style="margin:0"><table id="build-table"></table></div>
       </div>
-      <h3>What happened</h3>
+      <div class="cream">
+        <h3>What happened</h3>
       <p>iOS 7.2.0 and Android 5.9.0 shipped the same mobile checkout module on Sep 18. In the treatment version, when a customer opened checkout and left without paying, the module often lost its queued analytics events. Payments are recorded on the server, so every buyer was still counted. The treatment group lost mostly non-buyers, which pushed its conversion rate up.</p>
       <p>The payment-side test (<code>payment_sessions_have_client_event</code>) passed, because the bug only touched sessions that never reached payment. Only the balance check found it.</p>
+      </div>
       <div class="callout"><p><strong>The fix:</strong> exclude both builds from both arms. The build is recorded when the customer is bucketed, before checkout is shown, so the exclusion removes the same kind of customer from each arm. After it the split is <span class="tab" data-bind="results.srm.analysis.treatment" data-fmt="int"></span> to <span class="tab" data-bind="results.srm.analysis.control" data-fmt="int"></span> (p = <span class="tab" data-bind="results.srm.analysis.p_value" data-fmt="p2"></span>). The cost is power: <span class="tab" data-bind="results.plan.achieved_per_arm" data-fmt="int"></span> customers per arm against the planned <span class="tab" data-bind="results.plan.required_per_arm" data-fmt="int"></span>, so the detectable effect rises from 1.5 to <span data-bind="results.plan.achieved_mde_pp"></span> pp.</p></div>
       <div class="card">
         <h4>Conversion lift, three ways</h4>
