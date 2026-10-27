@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "semantic_model": {
+    "name": "experiment_customers",
+    "table": "exp_customers",
+    "grain": "customer_id",
+    "description": "One row per customer bucketed into express_checkout_v1. The customer is the randomization unit, so every metric is defined on customers, including ratio metrics whose numerator and denominator are counts of attempts or orders."
+  },
+  "dimensions": {
+    "variant": {"expr": "variant", "description": "control or treatment"},
+    "platform": {"expr": "platform", "description": "desktop_web, mobile_web, ios_app, android_app"},
+    "app_version": {"expr": "app_version", "description": "App build at bucketing; 'web' for browsers"},
+    "customer_type": {"expr": "customer_type", "description": "new or returning"},
+    "country": {"expr": "country", "description": "CA or US"},
+    "exposure_date": {"expr": "exposure_date", "description": "Date of the first logged checkout_started"}
+  },
+  "populations": {
+    "assigned": {"where": "1 = 1", "description": "Everyone the assignment service bucketed"},
+    "exposed": {"where": "exposed = 1", "description": "Bucketed and logged at least one checkout_started (the dashboard's original definition)"},
+    "analysis": {"where": "exposed = 1 AND excluded_reason IS NULL", "description": "Exposed, excluding app builds listed in known_bad_builds"}
+  },
+  "measures": {
+    "customers": {"expr": "1", "description": "Customers in the population"},
+    "submitting_customers": {"expr": "CASE WHEN attempts > 0 THEN 1 ELSE 0 END", "description": "Customers who submitted at least one payment"},
+    "converted_customers": {"expr": "converted", "description": "Customers with at least one authorized payment"},
+    "attempts": {"expr": "attempts", "description": "Payment attempts, retries included"},
+    "authorized_attempts": {"expr": "authorized_attempts", "description": "Authorized payment attempts"},
+    "orders": {"expr": "orders", "description": "Orders (authorized attempts)"},
+    "express_orders": {"expr": "express_orders", "description": "Orders paid with the express wallet"},
+    "revenue_cad": {"expr": "revenue_cad", "description": "Order value in CAD, before refunds"},
+    "refunded_orders": {"expr": "refunded_orders", "description": "Orders refunded by the data cutoff"},
+    "disputed_orders": {"expr": "disputed_orders", "description": "Orders disputed by the data cutoff"},
+    "prior_spend_90d_cad": {"expr": "prior_spend_90d_cad", "description": "Spend in the 90 days before the test (pre-experiment covariate)"}
+  },
+  "metrics": {
+    "checkout_conversion": {
+      "label": "Checkout conversion",
+      "role": "primary",
+      "numerator": "converted_customers",
+      "denominator": "customers",
+      "format": "percent",
+      "desired_direction": "increase",
+      "description": "Share of customers who reached checkout and placed at least one order."
+    },
+    "payment_submission_rate": {
+      "label": "Payment submission",
+      "role": "diagnostic",
+      "numerator": "submitting_customers",
+      "denominator": "customers",
+      "format": "percent",
+      "desired_direction": "increase",
+      "description": "Share of customers who reached checkout and submitted a payment. Separates intent from authorization."
+    },
+    "revenue_per_customer": {
+      "label": "Revenue per customer",
+      "role": "secondary",
+      "numerator": "revenue_cad",
+      "denominator": "customers",
+      "covariate": "prior_spend_90d_cad",
+      "format": "currency",
+      "desired_direction": "increase",
+      "description": "Order value per customer who reached checkout, before refunds. Analyzed with CUPED on 90-day prior spend."
+    },
+    "average_order_value": {
+      "label": "Average order value",
+      "role": "secondary",
+      "numerator": "revenue_cad",
+      "denominator": "orders",
+      "format": "currency",
+      "desired_direction": "increase",
+      "description": "Order value per order. Not comparable as a causal effect on its own: the treatment changes who orders."
+    },
+    "authorization_rate": {
+      "label": "Authorization rate",
+      "role": "guardrail",
+      "numerator": "authorized_attempts",
+      "denominator": "attempts",
+      "format": "percent",
+      "desired_direction": "increase",
+      "guardrail": {"max_harm_pp": 0.5},
+      "description": "Authorized attempts over all attempts, retries included."
+    },
+    "refund_rate": {
+      "label": "Refund rate",
+      "role": "guardrail",
+      "numerator": "refunded_orders",
+      "denominator": "orders",
+      "format": "percent",
+      "desired_direction": "decrease",
+      "guardrail": {"max_harm_pp": 1.0},
+      "description": "Orders refunded by the data cutoff over all orders."
+    },
+    "dispute_rate": {
+      "label": "Dispute rate",
+      "role": "guardrail",
+      "numerator": "disputed_orders",
+      "denominator": "orders",
+      "format": "percent",
+      "desired_direction": "decrease",
+      "guardrail": {"max_harm_pp": 0.15},
+      "description": "Orders disputed by the data cutoff over all orders. Immature: disputes keep arriving for months after the order."
+    },
+    "express_share_of_orders": {
+      "label": "Express share of orders",
+      "role": "diagnostic",
+      "numerator": "express_orders",
+      "denominator": "orders",
+      "format": "percent",
+      "desired_direction": "increase",
+      "description": "Adoption check: share of orders paid with the express wallet. Zero in control by design."
+    }
+  }
+}

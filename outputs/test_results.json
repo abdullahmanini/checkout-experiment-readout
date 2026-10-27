@@ -1,0 +1,190 @@
+{
+  "tests": [
+    {
+      "name": "raw_event_duplicates",
+      "severity": "warn",
+      "checks": "Raw analytics events with a repeated event_id (SDK retries). Expected; staging keeps the first copy.",
+      "status": "fail",
+      "failing_rows": 1212,
+      "sample": [
+        {
+          "event_id": "ev_0037eab0a03459",
+          "copies": 2
+        },
+        {
+          "event_id": "ev_004692ab11a6a0",
+          "copies": 2
+        },
+        {
+          "event_id": "ev_00608fa954b898",
+          "copies": 2
+        },
+        {
+          "event_id": "ev_007ae591278b79",
+          "copies": 2
+        },
+        {
+          "event_id": "ev_007c2b427a3878",
+          "copies": 2
+        },
+        {
+          "event_id": "ev_008e8613b9fa2d",
+          "copies": 2
+        },
+        {
+          "event_id": "ev_00c2c6de6a6b4f",
+          "copies": 2
+        },
+        {
+          "event_id": "ev_00e3843943e630",
+          "copies": 2
+        }
+      ]
+    },
+    {
+      "name": "stg_event_id_unique",
+      "severity": "error",
+      "checks": "After deduplication every event_id appears once.",
+      "status": "pass",
+      "failing_rows": 0,
+      "sample": []
+    },
+    {
+      "name": "assignment_unique_and_valid",
+      "severity": "error",
+      "checks": "One assignment per customer, a known variant and platform, and an assignment time inside the test window.",
+      "status": "pass",
+      "failing_rows": 0,
+      "sample": []
+    },
+    {
+      "name": "customers_match_assignments",
+      "severity": "error",
+      "checks": "Every assigned customer has exactly one CRM row and the reverse.",
+      "status": "pass",
+      "failing_rows": 0,
+      "sample": []
+    },
+    {
+      "name": "payment_attempts_valid",
+      "severity": "error",
+      "checks": "Known outcome and method, positive amount, and a decline code exactly when declined.",
+      "status": "pass",
+      "failing_rows": 0,
+      "sample": []
+    },
+    {
+      "name": "activity_belongs_to_assigned_customers",
+      "severity": "error",
+      "checks": "No event or payment from a customer the assignment service never bucketed.",
+      "status": "pass",
+      "failing_rows": 0,
+      "sample": []
+    },
+    {
+      "name": "activity_after_assignment",
+      "severity": "error",
+      "checks": "Nothing happens before the customer was bucketed or after the test closed (one hour of grace for sessions in flight).",
+      "status": "pass",
+      "failing_rows": 0,
+      "sample": []
+    },
+    {
+      "name": "one_customer_per_session",
+      "severity": "error",
+      "checks": "A session_id never appears under two customers across the two sources.",
+      "status": "pass",
+      "failing_rows": 0,
+      "sample": []
+    },
+    {
+      "name": "refunds_and_disputes_reference_orders",
+      "severity": "error",
+      "checks": "Refunds and disputes point at authorized attempts, never exceed the order, and disputes fall on or before the data cutoff.",
+      "status": "pass",
+      "failing_rows": 0,
+      "sample": []
+    },
+    {
+      "name": "no_control_contamination",
+      "severity": "error",
+      "checks": "Control customers never saw the express button or paid with it.",
+      "status": "pass",
+      "failing_rows": 0,
+      "sample": []
+    },
+    {
+      "name": "payment_sessions_have_client_event",
+      "severity": "error",
+      "checks": "Every session that reached the payments ledger also has a client checkout_started event.",
+      "status": "pass",
+      "failing_rows": 0,
+      "sample": []
+    },
+    {
+      "name": "srm_assignment",
+      "severity": "error",
+      "checks": "Bucketing split is 50/50 across all assigned customers (chi-square, p < 0.001 fails).",
+      "status": "pass",
+      "failing_rows": 0,
+      "sample": []
+    },
+    {
+      "name": "srm_exposed",
+      "severity": "warn",
+      "checks": "The exposed population (customers with a logged checkout_started) is still 50/50.",
+      "status": "fail",
+      "failing_rows": 1,
+      "sample": [
+        {
+          "n": 32301,
+          "treatment": 15850,
+          "chi_square": 11.182347295749357
+        }
+      ]
+    },
+    {
+      "name": "srm_exposed_by_build",
+      "severity": "warn",
+      "checks": "Within each platform and app build, the exposed population is 50/50 (finds where an SRM comes from).",
+      "status": "fail",
+      "failing_rows": 2,
+      "sample": [
+        {
+          "platform": "android_app",
+          "app_version": "5.9.0",
+          "n": 1503,
+          "treatment": 639,
+          "chi_square": 33.68263473053892
+        },
+        {
+          "platform": "ios_app",
+          "app_version": "7.2.0",
+          "n": 2349,
+          "treatment": 997,
+          "chi_square": 53.6504895700298
+        }
+      ]
+    },
+    {
+      "name": "srm_analysis_population",
+      "severity": "error",
+      "checks": "After excluding the faulty build (a pre-treatment attribute, so both arms lose the same kind of customer), the split is 50/50 again.",
+      "status": "pass",
+      "failing_rows": 0,
+      "sample": []
+    }
+  ],
+  "row_counts": {
+    "raw_assignments": 78400,
+    "raw_customers": 78400,
+    "raw_checkout_events": 54711,
+    "raw_payment_attempts": 24414,
+    "raw_refunds": 1026,
+    "raw_disputes": 69,
+    "stg_checkout_events": 53499,
+    "fct_checkout_sessions": 35957,
+    "fct_orders": 22486,
+    "exp_customers": 78400
+  }
+}

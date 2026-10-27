@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Express Checkout Experiment Readout</title>
+<meta name="description" content="An A/B test readout on synthetic data: a SQL pipeline with data tests, a metrics semantic layer, a sample ratio mismatch traced to two app builds, delta-method and CUPED analysis, and a ship decision. By Abdullah Al Mneni.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%274%27 fill=%27%230b6e63%27/%3E%3Cpath d=%27M4 9l3 3 5-7%27 stroke=%27white%27 stroke-width=%272%27 fill=%27none%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<nav class="nav" aria-label="Sections">
+  <div class="wrap">
+    <span class="wordmark">Express checkout <span>· A/B readout</span></span>
+    <ul>
+      <li><a href="#plan">Plan</a></li>
+      <li><a href="#pipeline">Pipeline</a></li>
+      <li><a href="#metrics">Metrics layer</a></li>
+      <li><a href="#trust">Trust checks</a></li>
+      <li><a href="#results">Results</a></li>
+      <li><a href="#time">Over time</a></li>
+      <li><a href="#segments">Segments</a></li>
+      <li><a href="#disputes">Disputes</a></li>
+      <li><a href="#decision">Decision</a></li>
+    </ul>
+    <a class="btn" href="https://github.com/abdullahmanini/checkout-experiment-readout">Repository</a>
+  </div>
+</nav>
+
+<main id="main">
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">A/B test readout · synthetic data</span>
+      <h1>Did a one-tap wallet button lift checkout conversion?</h1>
+      <p class="lead">I built the pipeline, data tests, metric definitions and analysis for a two-week checkout experiment at a fictional retailer. The first number looked like +4.6 points. A logging bug in two app builds caused most of that, and the real lift is about +2.6.</p>
+      <p class="byline">Abdullah Al Mneni · Business Technology Management, Toronto Metropolitan University · October 2026</p>
+      <div class="actions">
+        <a class="btn solid" href="docs/readout.md">Read the decision memo</a>
+        <a class="btn" href="docs/experiment_plan.md">Experiment plan</a>
+        <a class="btn" href="sql/tests.sql">Data tests</a>
+      </div>
+    </div>
+    <aside class="scorecard" aria-label="Readout summary">
+      <div class="head"><span><b>express_checkout_v1</b></span><span>Sep 14 to 27, 2026 · <span class="tab" data-bind="results.srm.analysis.n" data-fmt="int"></span> customers</span></div>
+      <div class="big">
+        <div class="kpi-v tab" data-bind="results.primary.diff" data-fmt="pp"></div>
+        <div class="kpi-l">checkout conversion, treatment minus control (95% CI <span class="tab" data-bind="results.primary.ci_low" data-fmt="pp"></span> to <span class="tab" data-bind="results.primary.ci_high" data-fmt="pp"></span>)</div>
+      </div>
+      <div class="compare">
+        <div><div class="kpi-v tab" data-bind="results.primary_naive.diff" data-fmt="pp"></div><div class="kpi-l">naive estimate, before the SRM was traced</div></div>
+        <div><div class="kpi-v tab" data-bind="results.truth_check.true_lift_pp_analysis_population" data-fmt="pp"></div><div class="kpi-l">true effect, known because the data is simulated</div></div>
+        <div><span class="status pass">Pass</span><div class="kpi-l">authorization and refund guardrails</div></div>
+        <div><span class="status warn">Open</span><div class="kpi-l">dispute guardrail: about <span data-bind="results.dispute.expected_share_arrived_pct"></span>% of disputes have arrived</div></div>
+      </div>
+      <div class="foot">Decision: ship, with a 5% holdout until disputes can be read on Dec 26.</div>
+    </aside>
+  </div>
+</header>
+
+<div class="note"><div class="wrap"><p>Larchway Outfitters is fictional, and every customer, payment and dispute comes from a seeded Python model. The study is not affiliated with any payments company or retailer. Because the model simulates every customer under both versions, the true effect is known, so the readout can be checked against it.</p></div></div>
+
+<section class="band" id="plan">
+  <div class="wrap sec">
+    <div class="rail"><div class="rail-inner"><div class="no">01</div><div class="phase">Plan</div></div></div>
+    <div>
+      <h2>The question and the plan, fixed before launch</h2>
+      <p class="intro">Larchway's checkout asks for card details on every order. The treatment adds an express wallet button that pays with stored, tokenized details in one tap. Does that raise the share of customers who finish checkout without hurting authorization, refunds or disputes?</p>
+      <div class="table-wrap"><table>
+        <tbody>
+          <tr><th>Unit</th><td>Customer, bucketed by a salted hash of <code>customer_id</code>, so the arm stays the same on every device</td></tr>
+          <tr><th>Split</th><td>50/50, all platforms, Canada and the US</td></tr>
+          <tr><th>Analyzed</th><td>Customers who reach checkout, the first screen where the versions differ</td></tr>
+          <tr><th>Primary metric</th><td>Checkout conversion: customers with an order ÷ customers who reached checkout</td></tr>
+          <tr><th>Guardrails</th><td>Authorization rate (margin 0.5 pp), refund rate (1.0 pp), dispute rate (0.15 pp, re-read at 90 days)</td></tr>
+          <tr><th>Sample size</th><td><span class="tab" data-bind="results.plan.required_per_arm" data-fmt="int"></span> per arm to detect 1.5 pp from a 66% baseline (α 0.05 two-sided, 80% power)</td></tr>
+          <tr><th>Duration</th><td>14 days, two full weekly cycles, no early stop for a good result</td></tr>
+        </tbody>
+      </table></div>
+      <p class="small">The full plan, including the decision rules and the one margin I changed after a first run, is in <a href="docs/experiment_plan.md">docs/experiment_plan.md</a>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="band soft" id="pipeline">
+  <div class="wrap sec">
+    <div class="rail"><div class="rail-inner"><div class="no">02</div><div class="phase">Pipeline</div></div></div>
+    <div>
+      <h2>Three sources, one customer table, fifteen tests</h2>
+      <p class="intro">The data arrives the way it would in practice: an assignment log from the bucketing service, client analytics events from the apps and website, and a server-side payments ledger with refunds and disputes. These are separate systems with separate failure modes.</p>
+      <div class="flow" aria-label="Pipeline stages">
+        <div class="stage"><div class="k">Raw</div><div class="t">As landed</div><ul><li>assignments</li><li>customers</li><li>checkout events</li><li>payment attempts</li><li>refunds, disputes</li></ul></div>
+        <div class="stage"><div class="k">Staging</div><div class="t">Typed, deduplicated</div><ul><li>typed columns</li><li>first copy of each resent event</li></ul></div>
+        <div class="stage"><div class="k">Marts</div><div class="t">Business grain</div><ul><li>checkout sessions</li><li>orders</li><li>one row per customer</li></ul></div>
+        <div class="stage"><div class="k">Semantic layer</div><div class="t">Metrics as code</div><ul><li>metric definitions</li><li>compiled SQL</li></ul></div>
+        <div class="stage"><div class="k">Readout</div><div class="t">Statistics</div><ul><li>SRM, delta method</li><li>CUPED, Holm</li></ul></div>
+      </div>
+      <p>The data tests in <a href="sql/tests.sql"><code>sql/tests.sql</code></a> run after the marts are built. An error stops the pipeline before any analysis. A warning is reported and has to be explained in the readout. Three warnings fired, and two of them led straight to the logging bug.</p>
+      <div class="table-wrap"><table id="tests-table"></table></div>
+      <p class="small">Row counts and failing rows: <a href="docs/test_results.md">docs/test_results.md</a>. Everything runs on Python's standard library and SQLite.</p>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="metrics">
+  <div class="wrap sec">
+    <div class="rail"><div class="rail-inner"><div class="no">03</div><div class="phase">Metrics layer</div></div></div>
+    <div>
+      <h2>Each metric is defined once and compiled to SQL</h2>
+      <p class="intro">Every metric is a ratio of two measures summed over customers, the unit that was randomized. From one definition, <a href="python/semantic_layer.py"><code>semantic_layer.py</code></a> produces two queries. One returns the metric value for dashboards. The other returns the sums, squares and cross-products the variance formulas need, so the confidence interval and the dashboard number come from the same definition.</p>
+      <div class="code-cap">metrics/semantic_layer.json (excerpt)</div>
+      <pre id="metric-def"></pre>
+      <div class="code-grid">
+        <div><div class="code-cap">compiled: value by variant</div><pre id="sql-value"></pre></div>
+        <div><div class="code-cap">compiled: sufficient statistics</div><pre id="sql-stats"></pre></div>
+      </div>
+      <p style="margin-top:18px">Authorization, refund and dispute rates are counted per attempt or per order, but one customer can make several of each. Treating attempts as independent would understate the variance, so those metrics use the delta method on customer-level sums.</p>
+    </div>
+  </div>
+</section>
+
+<section class="band soft" id="trust">
+  <div class="wrap sec">
+    <div class="rail"><div class="rail-inner"><div class="no">04</div><div class="phase">Trust checks</div></div></div>
+    <div>
+      <h2>The exposure count was off, so I looked for the cause before any results</h2>
+      <p class="intro">Assignment was close to even, but among customers with a logged <code>checkout_started</code> event, treatment had only <span class="tab" data-bind="results.srm.exposed.treatment_share"></span>% (χ² <span class="tab" data-bind="results.srm.exposed.chi_square"></span>, p = <span class="tab" data-bind="results.srm.exposed.p_value" data-fmt="p"></span>). Reaching checkout happens before the versions differ, so the arms should reach it at the same rate. A gap this size meant the data was missing customers.</p>
+      <div class="card">
+        <h4>Exposed customers by app build</h4>
+        <p class="cap">Treatment share of customers with a logged checkout_started. Dot left of the line means treatment customers are missing.</p>
+        <div class="table-wrap" style="margin:0"><table id="build-table"></table></div>
+      </div>
+      <h3>What happened</h3>
+      <p>iOS 7.2.0 and Android 5.9.0 shipped the same mobile checkout module on Sep 18. In the treatment version, when a customer opened checkout and left without paying, the module often lost its queued analytics events. Payments are recorded on the server, so every buyer was still counted. The treatment group lost mostly non-buyers, which pushed its conversion rate up.</p>
+      <p>The payment-side test (<code>payment_sessions_have_client_event</code>) passed, because the bug only touched sessions that never reached payment. Only the balance check found it.</p>
+      <div class="callout"><p><strong>The fix:</strong> exclude both builds from both arms. The build is recorded when the customer is bucketed, before checkout is shown, so the exclusion removes the same kind of customer from each arm. After it the split is <span class="tab" data-bind="results.srm.analysis.treatment" data-fmt="int"></span> to <span class="tab" data-bind="results.srm.analysis.control" data-fmt="int"></span> (p = <span class="tab" data-bind="results.srm.analysis.p_value" data-fmt="p2"></span>). The cost is power: <span class="tab" data-bind="results.plan.achieved_per_arm" data-fmt="int"></span> customers per arm against the planned <span class="tab" data-bind="results.plan.required_per_arm" data-fmt="int"></span>, so the detectable effect rises from 1.5 to <span data-bind="results.plan.achieved_mde_pp"></span> pp.</p></div>
+      <div class="card">
+        <h4>Conversion lift, three ways</h4>
+        <p class="cap">Treatment minus control in percentage points, with 95% confidence intervals. The true value comes from simulating every customer under both versions.</p>
+        <div class="forest" id="forest-naive"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="results">
+  <div class="wrap sec">
+    <div class="rail"><div class="rail-inner"><div class="no">05</div><div class="phase">Results</div></div></div>
+    <div>
+      <h2>More customers finish checkout, and the guardrails hold so far</h2>
+      <p class="intro">Checkout conversion rose from <span class="tab" data-bind="results.primary.control" data-fmt="pct"></span> to <span class="tab" data-bind="results.primary.treatment" data-fmt="pct"></span>. Most of the gain is customers who now submit a payment at all (+<span class="tab" data-bind="results.metrics.payment_submission_rate.diff" data-fmt="2"></span> pp). The rest is express payments being authorized more often. <span class="tab" data-bind="results.metrics.express_share_of_orders.treatment" data-fmt="1"></span>% of treatment orders used the wallet.</p>
+      <div class="grid-2" style="margin-top:22px">
+        <div class="card">
+          <h4>Where customers drop out</h4>
+          <p class="cap">Share of customers who reached checkout.</p>
+          <div class="legend"><span><i style="background:var(--series-1)"></i>Control (card form)</span><span><i style="background:var(--series-2)"></i>Treatment (with express button)</span></div>
+          <div class="chart short"><canvas id="funnel" role="img" aria-label="Funnel: share of customers who submitted a payment and who converted, by arm"></canvas></div>
+        </div>
+        <div class="card">
+          <h4>Guardrails against their margins</h4>
+          <p class="cap">Change in percentage points, oriented so right is harm. Pass means the whole interval sits left of the margin.</p>
+          <div class="legend"><span><i class="dot" style="background:var(--ink-2)"></i>Estimate and 95% CI</span><span><i class="dash"></i>Harm margin</span></div>
+          <div class="forest" id="forest-guard"></div>
+        </div>
+      </div>
+      <div class="table-wrap" style="margin-top:22px"><table id="metrics-table"></table></div>
+      <h3>Revenue moved less than conversion</h3>
+      <p>Revenue per customer rose $<span class="tab" data-bind="results.metrics.revenue_per_customer.diff" data-fmt="2"></span>, not significant. Average order value fell <span class="tab" data-bind="results.metrics.average_order_value.rel_lift_pct" data-fmt="neg1"></span>%. The test cannot tell whether that is smaller baskets or new, smaller buyers, because the treatment changes who orders.</p>
+      <p>CUPED on 90-day prior spend cut the variance of revenue per customer by only <span class="tab" data-bind="results.metrics.revenue_per_customer_cuped.variance_reduction" data-fmt="share1"></span>%. Half the customers are new and have no prior spend, and revenue per customer mostly depends on whether someone buys at all. A covariate that exists for everyone, such as prior sessions, is the next thing to try.</p>
+    </div>
+  </div>
+</section>
+
+<section class="band soft" id="time">
+  <div class="wrap sec">
+    <div class="rail"><div class="rail-inner"><div class="no">06</div><div class="phase">Over time</div></div></div>
+    <div>
+      <h2>Stopping early would have overstated the lift</h2>
+      <p class="intro">The result crossed p &lt; 0.05 on day 3 and never went back. Had the test stopped on day 4, when p was 0.0001, the reported lift would have been <span class="tab" data-bind="results.daily.3.lift_pp" data-fmt="pp"></span>, half again as large as the final figure. Estimates that cross a threshold early tend to be the high ones, which is why the plan fixed the horizon at 14 days.</p>
+      <div class="card">
+        <h4>Cumulative conversion lift by day</h4>
+        <p class="cap">Everyone exposed and every order up to the end of each day, analysis population.</p>
+        <div class="legend"><span><i class="line" style="background:var(--series-1)"></i>Lift (pp)</span><span><i class="bandkey"></i>95% confidence interval</span><span><i class="tline"></i>True effect</span></div>
+        <div class="chart"><canvas id="daily" role="img" aria-label="Cumulative lift by day narrowing toward about 2.6 points"></canvas></div>
+        <details class="data"><summary>Show the daily numbers</summary><div class="table-wrap"><table id="daily-table"></table></div></details>
+      </div>
+      <p style="margin-top:18px">Customers first exposed in week 1 show <span class="tab" data-bind="results.cohorts.week_1.diff" data-fmt="pp"></span> and week 2 <span class="tab" data-bind="results.cohorts.week_2.diff" data-fmt="pp"></span>. The intervals overlap widely, so this is not evidence that the effect fades as the button stops being new.</p>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="segments">
+  <div class="wrap sec">
+    <div class="rail"><div class="rail-inner"><div class="no">07</div><div class="phase">Segments</div></div></div>
+    <div>
+      <h2>Phones gain the most, and small segments are noisy</h2>
+      <p class="intro">Mobile web gains the most and desktop the least, which fits a button that saves typing card details on a small screen. These cuts are exploratory, with p-values Holm-adjusted within each family.</p>
+      <div class="card">
+        <h4>Conversion lift by segment</h4>
+        <p class="cap">Percentage points with 95% CI. The hollow diamond is the true platform effect from the model, across all builds.</p>
+        <div class="legend"><span><i class="dot" style="background:var(--ink-2)"></i>Estimate and 95% CI</span><span><i class="diamond"></i>True effect</span></div>
+        <div class="forest" id="forest-seg"></div>
+      </div>
+      <p style="margin-top:18px">Because the data is simulated, I can show what segment cuts usually hide. Android's +<span class="tab" data-bind="results.segments.platform.0.diff" data-fmt="2"></span> pp is well above its true +<span data-bind="results.truth_check.true_lift_pp_by_platform.android_app"></span>, and iOS sits below its true value. Both are small samples after the exclusion. A segment estimate picked because it looks large is usually too large.</p>
+    </div>
+  </div>
+</section>
+
+<section class="band soft" id="disputes">
+  <div class="wrap sec">
+    <div class="rail"><div class="rail-inner"><div class="no">08</div><div class="phase">Disputes</div></div></div>
+    <div>
+      <h2>The dispute guardrail cannot be read yet</h2>
+      <p class="intro">Disputes arrive weeks or months after an order. By the Oct 25 cutoff, orders from the test had been open <span data-bind="results.dispute.min_days_observed" data-fmt="int"></span> to <span data-bind="results.dispute.max_days_observed" data-fmt="int"></span> days, and the assumed lag curve says about <span data-bind="results.dispute.expected_share_arrived_pct"></span>% of eventual disputes have arrived.</p>
+      <div class="grid-2" style="margin-top:22px">
+        <div class="card">
+          <h4>Share of eventual disputes arrived, by order age</h4>
+          <p class="cap">Assumed historical lag curve. The shaded band is where this test's orders sit.</p>
+          <div class="chart short"><canvas id="lag" role="img" aria-label="Dispute arrival curve with the test's orders between 28 and 42 days old"></canvas></div>
+        </div>
+        <div class="card">
+          <h4>What the test can say today</h4>
+          <p class="cap">Observed by the cutoff, analysis population.</p>
+          <div class="table-wrap kv" style="margin:0"><table>
+            <tbody>
+              <tr><th>Control</th><td class="n"><span data-bind="results.metrics.dispute_rate.control" data-fmt="3"></span>%</td></tr>
+              <tr><th>Treatment</th><td class="n"><span data-bind="results.metrics.dispute_rate.treatment" data-fmt="3"></span>%</td></tr>
+              <tr><th>Difference</th><td class="n"><span data-bind="results.metrics.dispute_rate.diff" data-fmt="pp"></span></td></tr>
+              <tr><th>95% CI</th><td class="n"><span data-bind="results.metrics.dispute_rate.ci_low" data-fmt="sgn"></span> to <span data-bind="results.metrics.dispute_rate.ci_high" data-fmt="sgn"></span> pp</td></tr>
+              <tr><th>Smallest detectable change</th><td class="n"><span data-bind="results.dispute.mde_pp_now" data-fmt="2"></span> pp</td></tr>
+              <tr><th>Margin</th><td class="n">0.15 pp</td></tr>
+              <tr><th>95% arrived by</th><td class="n">day <span data-bind="results.dispute.days_for_95pct"></span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+      <p style="margin-top:18px">With about <span data-bind="results.dispute.orders_per_arm" data-fmt="int"></span> orders per arm, the test can only detect a change of about <span data-bind="results.dispute.mde_pp_now" data-fmt="2"></span> pp, larger than the margin. The observed +<span data-bind="results.metrics.dispute_rate.diff" data-fmt="2"></span> pp is not evidence of harm, but it does not rule harm out. In the model's full data the rates end at <span data-bind="results.truth_check.true_dispute_rate_full_maturity_pct.control" data-fmt="2"></span>% and <span data-bind="results.truth_check.true_dispute_rate_full_maturity_pct.treatment" data-fmt="2"></span>%, so most of today's gap is noise. The readout had no way to know that, so the guardrail stays open.</p>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="decision">
+  <div class="wrap sec">
+    <div class="rail"><div class="rail-inner"><div class="no">09</div><div class="phase">Decision</div></div></div>
+    <div>
+      <div class="decision">
+        <div class="k">Recommendation</div>
+        <div class="h">Ship to 95% and keep a 5% card-form holdout until Dec 26.</div>
+        <p>The primary metric rose significantly and the authorization and refund guardrails pass. The plan's rule for an open dispute guardrail is to ship with a holdout and re-read at 90 days.</p>
+      </div>
+      <ol class="plain">
+        <li>Re-read disputes on Dec 26, 2026, when the test's orders are 90 days old, against the 0.15 pp margin. Track express orders from new customers on their own, since that is where a fraud problem would show first.</li>
+        <li>Log exposure on the server when checkout renders, so a client bug cannot remove customers from the denominator again.</li>
+        <li>Keep <code>srm_exposed_by_build</code> as a standing test on every experiment that runs in the apps.</li>
+        <li>Look at basket composition to explain the <span data-bind="results.metrics.average_order_value.rel_lift_pct" data-fmt="neg1"></span>% drop in order value.</li>
+      </ol>
+      <h3>Limits</h3>
+      <ul class="plain">
+        <li>The data is synthetic. Rates, lags and effects are assumptions listed in <a href="docs/assumptions.md">docs/assumptions.md</a>, not measurements from any real company.</li>
+        <li>I wrote the plan alongside the model, so it is a pre-registration in form only. The one margin changed after a first run is disclosed in the plan.</li>
+        <li>Statistics use normal approximations, which suit samples this large. The dispute counts (under 40 per arm) are near the edge of that.</li>
+        <li>I built this with AI assistance (Claude Code) for the coding. The experiment design, the checks and the decision are mine, and I checked every figure on this page against the query output.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer><div class="wrap"><span>Abdullah Al Mneni · <a href="https://www.linkedin.com/in/abdullah-al-mneni-554809309/">LinkedIn</a> · <a href="https://github.com/abdullahmanini">GitHub</a></span><span>Synthetic data · Python standard library, SQLite, Chart.js</span></div></footer>
+
+<div class="tooltip" id="tip" role="status" aria-live="polite"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="assets/site-data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

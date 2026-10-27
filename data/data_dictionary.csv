@@ -1,0 +1,37 @@
+table,column,type,description
+assignments,customer_id,text,Primary key. One row per customer bucketed into the experiment (server-side assignment service).
+assignments,experiment_id,text,Always express_checkout_v1.
+assignments,variant,text,control (card form only) or treatment (card form plus an express wallet button).
+assignments,assigned_at,timestamp,"When the customer was bucketed, on their first visit during the test (Sep 14 to 27, 2026)."
+assignments,platform,text,"desktop_web, mobile_web, ios_app or android_app, fixed per customer."
+assignments,app_version,text,App build at bucketing; blank on the web. iOS 7.2.0 and Android 5.9.0 carry the planted logging bug.
+customers,customer_id,text,"Primary key, foreign key to assignments."
+customers,country,text,CA or US.
+customers,customer_type,text,new (no previous order) or returning.
+customers,prior_orders_90d,integer,Orders in the 90 days before the test. Pre-experiment covariate.
+customers,prior_spend_90d_cad,numeric,Spend in the 90 days before the test. Used for CUPED.
+checkout_events,event_id,text,Client analytics event ID. Not unique in raw: SDK retries resend the same event.
+checkout_events,event_name,text,checkout_started (every session) or express_button_shown (treatment sessions only).
+checkout_events,customer_id,text,Foreign key to assignments.
+checkout_events,session_id,text,Checkout session; joins to payment_attempts.
+checkout_events,event_at,timestamp,Client timestamp.
+checkout_events,received_at,timestamp,When the analytics collector received it; differs between duplicates.
+checkout_events,platform,text,Client platform.
+checkout_events,app_version,text,Client build; blank on the web.
+payment_attempts,attempt_id,text,Primary key. Server-side payments ledger.
+payment_attempts,session_id,text,Checkout session the attempt belongs to.
+payment_attempts,customer_id,text,Foreign key to assignments.
+payment_attempts,created_at,timestamp,Attempt time.
+payment_attempts,payment_method,text,card_form or express_wallet (treatment only).
+payment_attempts,amount_cad,numeric,Order amount in CAD.
+payment_attempts,outcome,text,authorized or declined.
+payment_attempts,decline_code,text,Blank when authorized.
+refunds,refund_id,text,Primary key.
+refunds,attempt_id,text,Foreign key to an authorized payment attempt.
+refunds,refunded_at,timestamp,Refund time.
+refunds,amount_cad,numeric,Full refunds only in this model.
+disputes,dispute_id,text,Primary key.
+disputes,attempt_id,text,Foreign key to an authorized payment attempt.
+disputes,created_at,timestamp,"When the dispute arrived. Only disputes on or before Oct 25, 2026 (data cutoff) are present."
+disputes,amount_cad,numeric,Disputed amount.
+disputes,reason,text,"fraudulent, product_not_received, product_unacceptable, duplicate or subscription_canceled."

@@ -1,0 +1,77 @@
+{
+  "note": "Each customer simulated under both versions with the same random draws. Not used by the analysis; only for checking the readout against the known answer.",
+  "populations": {
+    "all_exposed": {
+      "customers": 32802,
+      "conversion_control_pct": 66.3,
+      "conversion_treatment_pct": 68.75,
+      "true_conversion_lift_pp": 2.45,
+      "true_revenue_per_customer_diff_cad": 1.48,
+      "dispute_rate_full_maturity_control_pct": 0.544,
+      "dispute_rate_full_maturity_treatment_pct": 0.564
+    },
+    "analysis_population": {
+      "customers": 28475,
+      "conversion_control_pct": 65.92,
+      "conversion_treatment_pct": 68.32,
+      "true_conversion_lift_pp": 2.39,
+      "true_revenue_per_customer_diff_cad": 1.45,
+      "dispute_rate_full_maturity_control_pct": 0.52,
+      "dispute_rate_full_maturity_treatment_pct": 0.537
+    },
+    "customer_type:new": {
+      "customers": 16048,
+      "conversion_control_pct": 62.25,
+      "conversion_treatment_pct": 64.69,
+      "true_conversion_lift_pp": 2.44,
+      "true_revenue_per_customer_diff_cad": 1.58,
+      "dispute_rate_full_maturity_control_pct": 0.78,
+      "dispute_rate_full_maturity_treatment_pct": 0.836
+    },
+    "customer_type:returning": {
+      "customers": 16754,
+      "conversion_control_pct": 70.18,
+      "conversion_treatment_pct": 72.64,
+      "true_conversion_lift_pp": 2.46,
+      "true_revenue_per_customer_diff_cad": 1.39,
+      "dispute_rate_full_maturity_control_pct": 0.344,
+      "dispute_rate_full_maturity_treatment_pct": 0.332
+    },
+    "platform:android_app": {
+      "customers": 3949,
+      "conversion_control_pct": 65.38,
+      "conversion_treatment_pct": 68.42,
+      "true_conversion_lift_pp": 3.04,
+      "true_revenue_per_customer_diff_cad": 1.81,
+      "dispute_rate_full_maturity_control_pct": 0.344,
+      "dispute_rate_full_maturity_treatment_pct": 0.4
+    },
+    "platform:desktop_web": {
+      "customers": 10803,
+      "conversion_control_pct": 72.03,
+      "conversion_treatment_pct": 72.86,
+      "true_conversion_lift_pp": 0.83,
+      "true_revenue_per_customer_diff_cad": 0.22,
+      "dispute_rate_full_maturity_control_pct": 0.583,
+      "dispute_rate_full_maturity_treatment_pct": 0.601
+    },
+    "platform:ios_app": {
+      "customers": 6132,
+      "conversion_control_pct": 69.26,
+      "conversion_treatment_pct": 72.02,
+      "true_conversion_lift_pp": 2.76,
+      "true_revenue_per_customer_diff_cad": 1.48,
+      "dispute_rate_full_maturity_control_pct": 0.718,
+      "dispute_rate_full_maturity_treatment_pct": 0.712
+    },
+    "platform:mobile_web": {
+      "customers": 11918,
+      "conversion_control_pct": 59.89,
+      "conversion_treatment_pct": 63.45,
+      "true_conversion_lift_pp": 3.56,
+      "true_revenue_per_customer_diff_cad": 2.52,
+      "dispute_rate_full_maturity_control_pct": 0.471,
+      "dispute_rate_full_maturity_treatment_pct": 0.496
+    }
+  }
+}
